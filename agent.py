@@ -126,51 +126,68 @@ def get_ada_embedding(text):
         "data"
     ][0]["embedding"]
 
-
 def openai_call(
     prompt: str,
     model: str = OPENAI_API_MODEL,
     temperature: float = OPENAI_TEMPERATURE,
     max_tokens: int = 100,
-):
+) -> str:
+    """
+    Performs an API call to the OpenAI API using the given parameters and handles rate limit errors.
+
+    Args:
+        prompt (str): The input prompt or question for the model.
+        model (str): The model to use for the API call (default is OPENAI_API_MODEL).
+        temperature (float): The temperature to use for controlling the randomness of the model's output (default is OPENAI_TEMPERATURE).
+        max_tokens (int): The maximum number of tokens for the model's output (default is 100).
+
+    Returns:
+        str: The AI-generated response based on the provided prompt and parameters.
+    """
     while True:
         try:
             if model.startswith("llama"):
-                # Spawn a subprocess to run llama.cpp
-                cmd = ["llama/main", "-p", prompt]
-                result = subprocess.run(cmd, shell=True, stderr=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True)
-                return result.stdout.strip()
+                return run_llama_model(prompt)
             elif not model.startswith("gpt-"):
-                # Use completion API
-                response = openai.Completion.create(
-                    engine=model,
-                    prompt=prompt,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=1,
-                    frequency_penalty=0,
-                    presence_penalty=0,
-                )
-                return response.choices[0].text.strip()
+                return call_completion_api(prompt, model, temperature, max_tokens)
             else:
-                # Use chat completion API
-                messages = [{"role": "system", "content": prompt}]
-                response = openai.ChatCompletion.create(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    n=1,
-                    stop=None,
-                )
-                return response.choices[0].message.content.strip()
+                return call_chat_completion_api(prompt, model, temperature, max_tokens)
         except openai.error.RateLimitError:
-            print(
-                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-            )
+            print("The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again.")
             time.sleep(10)  # Wait 10 seconds and try again
-        else:
-            break
+
+
+def run_llama_model(prompt: str) -> str:
+    cmd = ["llama/main", "-p", prompt]
+    result = subprocess.run(cmd, shell=True, stderr=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True)
+    return result.stdout.strip()
+
+
+def call_completion_api(prompt: str, model: str, temperature: float, max_tokens: int) -> str:
+    response = openai.Completion.create(
+        engine=model,
+        prompt=prompt,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+    )
+    return response.choices[0].text.strip()
+
+
+def call_chat_completion_api(prompt: str, model: str, temperature: float, max_tokens: int) -> str:
+    messages = [{"role": "system", "content": prompt}]
+    response = openai.ChatCompletion.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        n=1,
+        stop=None,
+    )
+    return response.choices[0].message.content.strip()
+
 
 
 def task_creation_agent(
